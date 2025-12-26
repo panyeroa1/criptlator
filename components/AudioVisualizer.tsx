@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, memo } from 'react';
 
 interface AudioVisualizerProps {
@@ -6,67 +5,84 @@ interface AudioVisualizerProps {
   color: string;
   width?: number;
   height?: number;
+  mode?: 'bottom' | 'center' | 'radial';
 }
 
 /**
- * AudioVisualizer component optimized for performance.
- * Implements exponential smoothing for fluid motion.
+ * AudioVisualizer component optimized for high-performance rendering.
+ * Uses optimized 2D context with frequency data smoothing.
  */
-const AudioVisualizer: React.FC<AudioVisualizerProps> = memo(({ analyser, color, width = 120, height = 40 }) => {
+const AudioVisualizer: React.FC<AudioVisualizerProps> = memo(({ analyser, color, width = 140, height = 24, mode = 'bottom' }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     if (!analyser || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
+    let animationId: number;
+    
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
     const bufferLength = analyser.frequencyBinCount;
-    // Reuse data arrays to avoid garbage collection pressure
     const dataArray = new Uint8Array(bufferLength);
     const smoothedArray = new Float32Array(bufferLength);
-    
-    /**
-     * Smoothing factor (alpha). 
-     * Lower values = smoother/slower movement.
-     * Higher values = more responsive/jittery movement.
-     */
-    const alpha = 0.18; 
-    
-    let animationId: number;
+    const alpha = 0.25; // Smoothing factor for fluid motion
 
     const draw = () => {
       animationId = requestAnimationFrame(draw);
       analyser.getByteFrequencyData(dataArray);
 
-      // Clear the canvas efficiently
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      const barWidth = (canvas.width / bufferLength) * 2.5;
-      let x = 0;
-
-      // Batch drawing: set style once and use a single path for all bars
-      ctx.fillStyle = color;
-      ctx.beginPath();
-
-      for (let i = 0; i < bufferLength; i++) {
-        // Apply exponential smoothing: smoothed = alpha * current + (1 - alpha) * previous
-        smoothedArray[i] = (alpha * dataArray[i]) + ((1 - alpha) * smoothedArray[i]);
-        
-        const barHeight = (smoothedArray[i] / 255) * canvas.height;
-        
-        if (ctx.roundRect) {
-          ctx.roundRect(x, canvas.height - barHeight, barWidth - 1, barHeight, 2);
-        } else {
-          ctx.rect(x, canvas.height - barHeight, barWidth - 1, barHeight);
-        }
-
-        x += barWidth + 1;
-      }
+      const barCount = mode === 'radial' ? 60 : 30; 
+      const barWidth = (canvas.width / barCount);
       
-      // Execute the fill operation once for all bars
-      ctx.fill();
+      ctx.shadowBlur = mode === 'radial' ? 12 : 8;
+      ctx.shadowColor = color;
+      ctx.fillStyle = color;
+
+      if (mode === 'radial') {
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = Math.min(centerX, centerY) * 0.8;
+        
+        for (let i = 0; i < barCount; i++) {
+          const dataIndex = Math.floor((i / barCount) * (bufferLength / 2));
+          smoothedArray[i] = (alpha * dataArray[dataIndex]) + ((1 - alpha) * smoothedArray[i]);
+          
+          const amplitude = (smoothedArray[i] / 255);
+          const barLength = amplitude * (radius * 0.5);
+          const angle = (i / barCount) * Math.PI * 2;
+          
+          const x1 = centerX + Math.cos(angle) * radius;
+          const y1 = centerY + Math.sin(angle) * radius;
+          const x2 = centerX + Math.cos(angle) * (radius + barLength);
+          const y2 = centerY + Math.sin(angle) * (radius + barLength);
+          
+          ctx.beginPath();
+          ctx.lineWidth = 2;
+          ctx.lineCap = 'round';
+          ctx.strokeStyle = color;
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+      } else {
+        let x = 0;
+        for (let i = 0; i < barCount; i++) {
+          const dataIndex = Math.floor((i / barCount) * (bufferLength / 2));
+          smoothedArray[i] = (alpha * dataArray[dataIndex]) + ((1 - alpha) * smoothedArray[i]);
+          const barHeight = (smoothedArray[i] / 255) * canvas.height;
+          
+          if (mode === 'center') {
+            ctx.fillRect(x, (canvas.height / 2) - (barHeight / 2), barWidth - 2, barHeight);
+          } else {
+            ctx.fillRect(x, canvas.height - barHeight, barWidth - 2, barHeight);
+          }
+          x += barWidth;
+        }
+      }
     };
 
     draw();
@@ -76,15 +92,15 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = memo(({ analyser, color,
         cancelAnimationFrame(animationId);
       }
     };
-  }, [analyser, color, width, height]);
+  }, [analyser, color, width, height, mode]);
 
   return (
     <canvas 
       ref={canvasRef} 
       width={width} 
       height={height} 
-      className="rounded-lg opacity-80"
-      style={{ imageRendering: 'pixelated' }} 
+      className="opacity-80 transition-all duration-300 pointer-events-none"
+      style={{ imageRendering: 'auto' }} 
     />
   );
 });

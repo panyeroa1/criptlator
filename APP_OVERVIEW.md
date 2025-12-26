@@ -4,25 +4,27 @@
 CriptLator is a specialized "plugin-style" platform for simultaneous transcription and translation, designed for minimal interference and maximum clarity.
 
 ## Features (Current)
-- **Audio Modes (Interpretation vs. Raw)**: Listeners can toggle between "AI Interpretation" (where they hear the translated voice) and "Raw Audio" (where the translation is visual captions only, and the AI voice is muted).
-- **Speaker Priority (Zero-Overlap Interruption)**: If the local user or system source becomes active (detected via RMS threshold), all currently playing translation audio is instantly killed. This allows the user to speak without hearing delayed AI echoes of their own or others' previous sentences.
+- **Role-Based Architecture**:
+  - **Speaker (Broadcast)**: Captures local microphone and system audio (e.g., YouTube, Zoom tabs) via `getDisplayMedia`. Transcribes the audio locally and pushes raw text to Supabase.
+  - **Listener (Translate)**: Automatically mutes microphone. Subscribes to the Speaker's Supabase broadcast. Feeds the incoming text into Gemini Live for real-time translation and high-quality TTS playback.
+- **Infinity UI (Lying down 8)**:
+  - **Left Orb (Green)**: Visualizes source audio capture (Speaker) or incoming caption stream (Listener).
+  - **Right Orb (White)**: Visualizes the AI's interpreted voice output.
 - **Multi-Source Audio Capture**: 
   - **Mic**: Standard microphone input.
-  - **Internal Speaker**: System audio capture (for meeting participants or video).
-  - **Both**: Mixed capture of local mic and system sound.
-- **Continuous Subtitle Stream**: Dual-column videoke display anchors Source Input (Left) and Translated Output (Right).
-- **Stereo Panned Interpretation**: Translation audio is panned to the Right channel to provide spatial separation from the primary source audio.
-- **Live Duplex Audio**: Instant audio-to-audio translation using Gemini 2.5 Native Audio.
-- **Selectable Voices & Languages**: 5 premium voice profiles and 50+ target languages.
+  - **System Audio**: Shared tab or application audio (perfect for interpreting shared videos or remote meeting participants).
+- **Live Duplex Interpretation**: Uses `gemini-2.5-flash-native-audio-preview-09-2025` for sub-second latency translation.
 
 ## Implementation Details
-- Uses `gemini-2.5-flash-native-audio-preview-09-2025`.
-- **System Audio Capture**: Uses `navigator.mediaDevices.getDisplayMedia`.
-- **Stereo Panner**: `StereoPannerNode` set to `0.8` for translated output.
-- **Mute Logic**: `GainNode` on the output path is controlled by `isTranslationAudioEnabled`.
-- **Interruption**: `sourcesRef` (Set of `AudioBufferSourceNode`) is force-stopped when input RMS > threshold.
+- **Backend Relay**: Uses Supabase Realtime (`postgres_changes`) to link Speakers and Listeners globally.
+- **Audio Routing**: Speakers use a `ScriptProcessorNode` to stream PCM16 audio. Listeners use `sendText` to trigger TTS translation from the broadcasted source text.
+- **Visualizers**: Custom `AudioVisualizer` component with exponential smoothing for fluid orb movement.
+
+## Testing Playground
+- **Source Audio Test**: Open a YouTube video in a tab. Start CriptLator as a **Speaker**. Select the YouTube tab in the system audio share dialog.
+- **Interpretation Test**: Open CriptLator in a separate browser window or device as a **Listener**. Select your preferred target language. You will hear the AI interpret the YouTube video in real-time.
 
 ## Future To-Do / Not Yet Implemented
 - [ ] Direct virtual driver support for native OS integration.
-- [ ] Translation confidence scoring display.
 - [ ] Historical transcription log export.
+- [ ] User authentication and private broadcast rooms.

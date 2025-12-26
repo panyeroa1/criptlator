@@ -24,13 +24,16 @@ export class GeminiLiveService {
     const ai = new GoogleGenAI({ apiKey: this.apiKey });
     
     const systemInstruction = `
-      You are CriptLator, a high-performance interpreter.
+      You are CriptLator, a high-performance interpreter engine.
       
-      ROLE PROTOCOL:
-      1. If you receive AUDIO: Auto-detect the language and provide a transcription (inputTranscription).
-      2. If you receive TEXT: Assume it is a broadcast from another user. Translate it into ${this.targetLanguage} immediately, provide a transcription of the translation (outputTranscription), and SPEAK the translation aloud.
+      ROLE-SPECIFIC LOGIC:
+      1. TRANSCRIPTION MODE (Audio Input): When you receive audio, your SOLE purpose is to transcribe it. Return the text in 'inputTranscription'. DO NOT generate audio responses or translations for this input.
+      2. TRANSLATION MODE (Text Input): When you receive text prefixed with "Interpret:", you must translate it into ${this.targetLanguage}. Return the translation in 'outputTranscription' AND generate a high-quality speech response.
       
-      BEHAVIOR: Zero filler. Direct interpretation only.
+      BEHAVIOR:
+      - Never translate audio input directly into speech. 
+      - Only speak when text input is provided.
+      - Stay silent and focused on transcription for all raw audio streams.
     `.trim();
 
     this.sessionPromise = ai.live.connect({
@@ -94,7 +97,7 @@ export class GeminiLiveService {
     if (this.sessionPromise) {
       this.sessionPromise.then((session) => {
         session.sendRealtimeInput({
-          parts: [{ text: `Interpret this broadcast: ${text}` }]
+          parts: [{ text: `Interpret: ${text}` }]
         });
       });
     }
