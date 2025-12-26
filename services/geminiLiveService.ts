@@ -1,16 +1,17 @@
-
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 
 export interface GeminiLiveCallbacks {
+  onOpen?: () => void;
   onInputTranscription: (text: string) => void;
   onOutputTranscription: (text: string) => void;
   onAudioData: (data: string) => void;
   onInterrupted: () => void;
   onError: (error: any) => void;
+  onClose?: (event: CloseEvent) => void;
 }
 
 export class GeminiLiveService {
-  private session: any;
+  private sessionPromise: Promise<any> | null = null;
   private targetLanguage: string;
   private apiKey: string;
 
@@ -19,7 +20,7 @@ export class GeminiLiveService {
     this.targetLanguage = targetLanguage;
   }
 
-  async connect(callbacks: GeminiLiveCallbacks, voiceName: string = 'Kore') {
+  connect(callbacks: GeminiLiveCallbacks, voiceName: string = 'Kore') {
     const ai = new GoogleGenAI({ apiKey: this.apiKey });
     
     const systemInstruction = `
@@ -32,79 +33,82 @@ export class GeminiLiveService {
       OPERATIONAL PROTOCOL:
       1. ZERO-LATENCY: Respond instantly to any input. 
       2. PARALLEL STREAMING: Deliver both text results and high-quality interpreted audio.
-      3. CHANNEL SEPARATION: Your primary audio output is the interpreted voice.
       
       BEHAVIOR: Act as a professional live interpreter.
     `.trim();
 
-    try {
-      this.session = await ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
-        config: {
-          responseModalities: [Modality.AUDIO],
-          systemInstruction,
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName } },
-          },
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
+    this.sessionPromise = ai.live.connect({
+      model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+      config: {
+        responseModalities: [Modality.AUDIO],
+        systemInstruction,
+        speechConfig: {
+          voiceConfig: { prebuiltVoiceConfig: { voiceName } },
         },
-        callbacks: {
-          onmessage: async (message: LiveServerMessage) => {
-            if (message.serverContent?.inputTranscription) {
-              callbacks.onInputTranscription(message.serverContent.inputTranscription.text);
-            }
-            if (message.serverContent?.outputTranscription) {
-              callbacks.onOutputTranscription(message.serverContent.outputTranscription.text);
-            }
-            if (message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data) {
-              callbacks.onAudioData(message.serverContent.modelTurn.parts[0].inlineData.data);
-            }
-            if (message.serverContent?.interrupted) {
-              callbacks.onInterrupted();
-            }
-          },
-          onerror: (err: any) => {
-            console.error("Gemini Live Error:", err);
-            callbacks.onError(err);
-          },
-          onclose: (event: CloseEvent) => {
-            console.debug("Session closed", event);
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
+      },
+      callbacks: {
+        onopen: () => {
+          console.debug("Gemini Live: Connection opened");
+          callbacks.onOpen?.();
+        },
+        onmessage: async (message: LiveServerMessage) => {
+          if (message.serverContent?.inputTranscription) {
+            callbacks.onInputTranscription(message.serverContent.inputTranscription.text);
+          }
+          if (message.serverContent?.outputTranscription) {
+            callbacks.onOutputTranscription(message.serverContent.outputTranscription.text);
+          }
+          if (message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data) {
+            callbacks.onAudioData(message.serverContent.modelTurn.parts[0].inlineData.data);
+          }
+          if (message.serverContent?.interrupted) {
+            callbacks.onInterrupted();
           }
         },
-      });
-      return this.session;
-    } catch (err: any) {
-      console.error("Connection Failed:", err);
-      throw err;
-    }
+        onerror: (err: any) => {
+          console.error("Gemini Live Error:", err);
+          callbacks.onError(err);
+        },
+        onclose: (event: CloseEvent) => {
+          console.debug("Gemini Live: Connection closed", event);
+          callbacks.onClose?.(event);
+        }
+      },
+    });
+
+    return this.sessionPromise;
   }
 
   sendAudio(base64Data: string) {
-    if (this.session) {
-      // Solely rely on session sendRealtimeInput for low-latency streaming
-      this.session.sendRealtimeInput({
-        media: {
-          data: base64Data,
-          mimeType: 'audio/pcm;rate=16000',
-        },
+    if (this.sessionPromise) {
+      this.sessionPromise.then((session) => {
+        session.sendRealtimeInput({
+          media: {
+            data: base64Data,
+            mimeType: 'audio/pcm;rate=16000',
+          },
+        });
       });
     }
   }
 
   sendText(text: string) {
-    if (this.session) {
-      // Send text parts through the realtime interface to trigger interpretation
-      this.session.sendRealtimeInput({
-        parts: [{ text: `Translate and speak aloud: ${text}` }]
+    if (this.sessionPromise) {
+      this.sessionPromise.then((session) => {
+        session.sendRealtimeInput({
+          parts: [{ text: `Translate and speak aloud: ${text}` }]
+        });
       });
     }
   }
 
-  disconnect() {
-    if (this.session) {
-      this.session.close();
-      this.session = null;
+  async disconnect() {
+    if (this.sessionPromise) {
+      const session = await this.sessionPromise;
+      session.close();
+      this.sessionPromise = null;
     }
   }
 }
