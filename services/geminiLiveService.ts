@@ -24,20 +24,23 @@ export class GeminiLiveService {
     const ai = new GoogleGenAI({ apiKey: this.apiKey });
     
     const systemInstruction = `
-      You are CriptLator, a high-performance interpreter engine.
+      You are CriptLator, a high-speed real-time interpretation engine.
       
-      ROLE-SPECIFIC LOGIC:
-      1. TRANSCRIPTION MODE (Audio Input): When you receive audio, your SOLE purpose is to transcribe it. Return the text in 'inputTranscription'. DO NOT generate audio responses or translations for this input.
-      2. TRANSLATION MODE (Text Input): When you receive text prefixed with "Interpret:", you must translate it into ${this.targetLanguage}. Return the translation in 'outputTranscription' AND generate a high-quality speech response.
+      OPERATIONAL MODES:
+      1. TRANSCRIPTION (Audio Stream): Your sole task is to provide a text transcription of any audio you hear. Return this in 'inputTranscription'. DO NOT generate any speech or translation for this input.
+      2. INTERPRETATION & READ ALOUD (Text Input): When you receive text prefixed with "Interpret:", you must immediately:
+         - Translate the text accurately into ${this.targetLanguage}.
+         - Return the translation text in 'outputTranscription'.
+         - ACTIVATE READ ALOUD: Immediately synthesize and return high-quality audio of you speaking this translation in a natural, professional tone.
       
-      BEHAVIOR:
-      - Never translate audio input directly into speech. 
-      - Only speak when text input is provided.
-      - Stay silent and focused on transcription for all raw audio streams.
+      CRITICAL RULES:
+      - Stay silent during Mode 1.
+      - Always speak during Mode 2 as soon as text is received.
+      - Be succinct and maintain high fidelity to the original meaning.
     `.trim();
 
     this.sessionPromise = ai.live.connect({
-      model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+      model: 'gemini-2.5-flash-native-audio-preview-12-2025',
       config: {
         responseModalities: [Modality.AUDIO],
         systemInstruction,
