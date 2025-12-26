@@ -24,17 +24,13 @@ export class GeminiLiveService {
     const ai = new GoogleGenAI({ apiKey: this.apiKey });
     
     const systemInstruction = `
-      You are CriptLator, a high-performance Real-Time Simultaneous AI Interpreter and Transcriber.
+      You are CriptLator, a high-performance interpreter.
       
-      CORE MISSION:
-      - Provide instant, low-latency transcription of any source input (audio or text).
-      - If provided text, immediately translate it into ${this.targetLanguage} and read it aloud using your AI voice.
+      ROLE PROTOCOL:
+      1. If you receive AUDIO: Auto-detect the language and provide a transcription (inputTranscription).
+      2. If you receive TEXT: Assume it is a broadcast from another user. Translate it into ${this.targetLanguage} immediately, provide a transcription of the translation (outputTranscription), and SPEAK the translation aloud.
       
-      OPERATIONAL PROTOCOL:
-      1. ZERO-LATENCY: Respond instantly to any input. 
-      2. PARALLEL STREAMING: Deliver both text results and high-quality interpreted audio.
-      
-      BEHAVIOR: Act as a professional live interpreter.
+      BEHAVIOR: Zero filler. Direct interpretation only.
     `.trim();
 
     this.sessionPromise = ai.live.connect({
@@ -98,7 +94,7 @@ export class GeminiLiveService {
     if (this.sessionPromise) {
       this.sessionPromise.then((session) => {
         session.sendRealtimeInput({
-          parts: [{ text: `Translate and speak aloud: ${text}` }]
+          parts: [{ text: `Interpret this broadcast: ${text}` }]
         });
       });
     }
