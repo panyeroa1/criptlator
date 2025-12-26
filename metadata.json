@@ -1,0 +1,8 @@
+{
+  "name": "CriptLator",
+  "description": "A high-performance real-time transcription and translation plugin-style app (TranC + TranL). It captures speaker audio, provides live captions, and translates speech into a selected language using Gemini's Native Audio API.",
+  "requestFramePermissions": [
+    "microphone",
+    "display-capture"
+  ]
+}
